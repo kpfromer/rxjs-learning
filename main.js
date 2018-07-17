@@ -1,43 +1,27 @@
 import { Observable } from 'rxjs';
+import { filter, map } from 'rxjs/operators';
 
 let numbers = [1, 3, 5];
 
 // let source = from(numbers);
 
 let source = Observable.create(observer => {
-  numbers.forEach(number => {
-    // NOTE: errors stop observable chain so 5 will NOT be reported!
-    // if (number === 3) {
-    //   return observer.error('Number cant be 3');
-    // }
-
-    return observer.next(number);
+  numbers.forEach((number, index, array) => {
+    setTimeout(() => {
+      observer.next(number);
+      if (index === array.length - 1) {
+        observer.complete();
+      }
+    }, 2000 * index);
   });
-  observer.complete();
-});
+}).pipe(
+  map(number => number * 2),
+  filter(number => number > 2)
+);
 
 // More simple observer
 source.subscribe(
-  val => console.log(val),
-  error => console.log(error),
-  () => console.log('complete')
+  value => console.log(`value: ${value}`),
+  error => console.log(`error ${error}`),
+  () => console.log(('complete'))
 );
-
-// More defined observer
-class MyObserver {
-
-  next(value) {
-    console.log(`value: ${value}`);
-  }
-
-  error(error) {
-    console.log(`error ${error}`);
-  }
-
-  complete() {
-    console.log('complete');
-  }
-
-}
-
-source.subscribe(new MyObserver());
