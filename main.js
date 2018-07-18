@@ -1,44 +1,44 @@
-import { fromEvent, Observable } from 'rxjs';
-import { delay, flatMap, retryWhen, scan, takeWhile } from 'rxjs/operators';
+import { defer } from 'rxjs/observable/defer';
+import { fromPromise } from 'rxjs/observable/fromPromise';
+import { fromEvent } from 'rxjs/observable/fromEvent';
+import { delay, flatMap, retryWhen, scan } from 'rxjs/operators';
 
 const outputDiv = document.getElementById('output');
 const button = document.getElementById('button');
 
-let click = fromEvent(button, 'click');
+const click = fromEvent(button, 'click');
 
-function load(url) {
-  const xhr = new XMLHttpRequest();
-
-  return Observable.create(observer => {
-    xhr.addEventListener('load', () => {
-
-      if (xhr.status >= 200 && xhr.status < 300) {
-        observer.next(JSON.parse(xhr.responseText));
-        observer.complete();
+const loadWithFetch = url => defer(
+  () => fromPromise(
+    fetch(url).then(response => {
+      if (response.ok) {
+        return response.json();
       } else {
-        observer.error(xhr.statusText);
+        return Promise.reject(response)
       }
-    });
+    })
+  )
+).pipe(
+  retryWhen(retryStrategy())
+);
 
-    xhr.open('GET', url);
-    xhr.send();
-  }).pipe(
-    retryWhen(retryStrategy({ attempts: 4, delay: 2000 }))
-  );
-
-}
-
-const retryStrategy = ({ attempts = 4, delay: delayTime = 1000 }) => errors =>
+const retryStrategy = ({ attempts = 4, delay: delayTime = 1000 } = {}) => errors =>
   errors.pipe(
-    scan(acc => acc + 1, 0),
-    takeWhile(acc => acc < attempts),
+    scan((acc, error) => {
+      acc += 1;
+      if (acc < attempts) {
+        return acc;
+      } else { // Throw error if it continues to break after x amount of "attempts"
+        throw new Error(error); // Usually thrown error in rxjs break the whole chain and code but since it is in a retryWhen, errors are expected and mapped to Observer.error() method
+      }
+    }, 0),
     delay(delayTime)
   );
 
 // More simple observer
 click
   .pipe(
-    flatMap(() => load('movies.json'))
+    flatMap(() => loadWithFetch('moviess.json'))
   )
   .subscribe(
   movies => {
